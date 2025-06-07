@@ -22,6 +22,7 @@ const COLL_TITLE_PREFIX_SHOW = "TV Shows Requested by ";
 const STALE_ADDED_DATE_THRESHOLD = moment().subtract(6, "months");
 const STALE_VIEW_DATE_THRESHOLD = moment().subtract(3, "months");
 const MS_24_HOURS = 86400000;
+const TAG_PREFIX_WATCHED_BY = "watched_by:";
 
 // Start after a delay, if set.
 const startDelay =
@@ -324,6 +325,66 @@ const app = async function () {
 					order_column: "date",
 					order_dir: "desc"
 				});
+
+
+                // =========================================================================
+                // === FEATURE: Watched By Tagging (Controlled by FEATURE_WATCHED_BY flag)
+                // =========================================================================
+                if (process.env.FEATURE_WATCHED_BY === "1") {
+                    console.log(" -> 'Watched By' feature is enabled.");
+                    
+                    /************************************************************************************
+                     * Clean up old watched_by tags before adding new ones.
+                     ************************************************************************************/
+                    const allRadarrTags = await RadarrAPI.getTags();
+                    if (allRadarrTags && radarrSonarrItem.tags.length > 0) {
+                        const radarrTagMap = new Map(allRadarrTags.map(tag => [tag.id, tag.label]));
+                        const viewerTagsToRemove = radarrSonarrItem.tags
+                            .map(tagId => radarrTagMap.get(tagId))
+                            .filter(tagName => tagName && tagName.startsWith(TAG_PREFIX_WATCHED_BY));
+
+                        if (viewerTagsToRemove.length > 0) {
+                            console.log(` -> Found ${viewerTagsToRemove.length} old watched_by tag(s) to remove.`);
+                            for (const tagName of viewerTagsToRemove) {
+                                console.log(` -> Removing old tag: ${tagName}`);
+                                radarrSonarrItem = await RadarrAPI.removeTagFromMediaItem(
+                                    radarrSonarrItem.id,
+                                    tagName,
+                                    <RadarrMediaDetails>radarrSonarrItem
+                                ) || radarrSonarrItem;
+                            }
+                        }
+                    }
+
+                    /************************************************************************************
+                     * Add tags for all users who have watched the movie.
+                     ************************************************************************************/
+                    const uniqueViewers = _.uniqBy(
+                        _.filter(
+                            histories,
+                            (session: TautulliHistoryDetails) => session && session.user
+                        ),
+                        "user"
+                    ) as TautulliHistoryDetails[];
+
+                    if (uniqueViewers && uniqueViewers.length > 0) {
+                        console.log(` -> Found ${uniqueViewers.length} current unique viewer(s).`);
+                        for (const viewer of uniqueViewers) {
+                            const nameForTag = viewer.friendly_name || viewer.user;
+                            const viewerTag = TAG_PREFIX_WATCHED_BY + nameForTag;
+                            console.log(` -> Applying Radarr tag for viewer: ${nameForTag}`);
+                            radarrSonarrItem = await RadarrAPI.addTagToMediaItem(
+                                radarrSonarrItem?.id,
+                                viewerTag,
+                                <RadarrMediaDetails>radarrSonarrItem
+                            ) || radarrSonarrItem;
+                        }
+                    }
+                }
+                // =========================================================================
+                // === END of FEATURE: Watched By Tagging
+                // =========================================================================
+
 
 				// Filter history sessions to look at everyone expect the requester.
 				const filteredHistories_others = _.filter(
