@@ -1,7 +1,7 @@
 version: "2.1"
 services:
   plex-requester-collections:
-    image: manybothans/plex-requester-collections:latest
+    image: plex-collections-local
     container_name: plex-requester-collections
     environment:
       - NODE_ENV=production # Optional - 'development' will give verbose logging.

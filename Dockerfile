@@ -13,4 +13,10 @@ RUN npm install
 # Bundle app source
 COPY . .
 
+# --- NEW DEBUGGING STEP ---
+# List the files and directories to confirm they were copied correctly.
+RUN find . -maxdepth 2
+
+RUN npm run build
+
 CMD [ "node", "dist/index.js" ]
