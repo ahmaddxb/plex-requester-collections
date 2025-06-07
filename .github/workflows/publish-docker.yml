@@ -43,7 +43,13 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
-
+          tags: |
+            # tag with :latest for pushes to the default branch
+            type=raw,value=latest,enable={{is_default_branch}}
+            # tag with the branch name for other branches
+            type=ref,event=branch
+            # tag with the git sha
+            type=sha
       # 6. Builds the image from your Dockerfile and pushes it to GHCR
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
